@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="assets/banner.webp" alt="LidBlur: three MacBooks with the lid lowering and the screen blurring more at each step" width="100%">
+
 # LidBlur
 
 **Lower your MacBook lid, and the screen blurs.**
