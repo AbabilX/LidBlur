@@ -12,6 +12,12 @@ enum Settings {
         set { defaults.set(newValue, forKey: "enabled") }
     }
 
+    /// When on, moving the pointer fades the blur away until the lid is raised again.
+    static var mouseClearsBlur: Bool {
+        get { defaults.bool(forKey: "mouseClearsBlur") }
+        set { defaults.set(newValue, forKey: "mouseClearsBlur") }
+    }
+
     /// Lid angle where blur begins.
     static var startAngle: Int {
         get { defaults.object(forKey: "startAngle") as? Int ?? 70 }

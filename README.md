@@ -73,6 +73,7 @@ Quit LidBlur from its menu, then delete `/Applications/LidBlur.app`.
 | **Enabled** | Turn the blur on or off |
 | **Start Blur At** | Angle where blur begins (50°–100°) |
 | **Full Blur At** | Angle where blur is at full strength (15°–45°) |
+| **Mouse Movement Clears Blur** | Optional, off by default. Moving the pointer fades the blur away; it comes back the next time you lower the lid |
 | **Preview Blur** | Runs a 3 second ramp so you can see the effect |
 | **Launch at Login** | Start LidBlur automatically |
 | **Quit LidBlur** | Exit |

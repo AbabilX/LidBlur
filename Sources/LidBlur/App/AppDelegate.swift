@@ -8,9 +8,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var timer: Timer?
     private var smoothedAngle: Double?
     private var previewStart: Date?
+    // Mouse-to-clear state: where the pointer was when blur began, and the fade factor (1 = shown).
+    private var mouseAnchor: NSPoint?
+    private var mouseCleared = false
+    private var reveal = 1.0
 
     private let angleItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let enabledItem = NSMenuItem(title: "Enabled", action: #selector(toggleEnabled), keyEquivalent: "")
+    private let mouseItem = NSMenuItem(title: "Mouse Movement Clears Blur", action: #selector(toggleMouseClears), keyEquivalent: "")
     private let loginItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLogin), keyEquivalent: "")
     private let startMenu = NSMenu()
     private let fullMenu = NSMenu()
@@ -42,12 +47,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         guard Settings.enabled, builtInDisplayIsActive(), let raw = sensor.angle() else {
             smoothedAngle = nil
+            resetMouseClear()
             overlay.setStrength(0)
             return
         }
         let angle = smoothedAngle.map { $0 + (raw - $0) * 0.35 } ?? raw
         smoothedAngle = angle
-        overlay.setStrength(strength(forAngle: angle))
+        let target = strength(forAngle: angle)
+        overlay.setStrength(target * revealFactor(blurWanted: target > 0))
+    }
+
+    /// Fades the blur out once the pointer moves, and re-arms when the lid is raised past the start angle.
+    private func revealFactor(blurWanted: Bool) -> Double {
+        guard Settings.mouseClearsBlur, blurWanted else {
+            resetMouseClear()
+            return 1
+        }
+        let location = NSEvent.mouseLocation
+        if let anchor = mouseAnchor {
+            // A few points of slack so a bumped desk doesn't count as movement.
+            if hypot(location.x - anchor.x, location.y - anchor.y) > 6 { mouseCleared = true }
+        } else {
+            mouseAnchor = location
+        }
+        // Ease toward the target over roughly a third of a second.
+        reveal += ((mouseCleared ? 0 : 1) - reveal) * 0.18
+        if mouseCleared, reveal < 0.01 { reveal = 0 }
+        return reveal
+    }
+
+    private func resetMouseClear() {
+        mouseAnchor = nil
+        mouseCleared = false
+        reveal = 1
     }
 
     private func strength(forAngle angle: Double) -> Double {
@@ -97,6 +129,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         menu.addItem(fullItem)
 
+        mouseItem.target = self
+        menu.addItem(mouseItem)
+
         let previewItem = NSMenuItem(title: "Preview Blur", action: #selector(preview), keyEquivalent: "")
         previewItem.target = self
         menu.addItem(previewItem)
@@ -115,6 +150,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             angleItem.title = "Lid sensor not found"
         }
         enabledItem.state = Settings.enabled ? .on : .off
+        mouseItem.state = Settings.mouseClearsBlur ? .on : .off
         loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
         for item in startMenu.items { item.state = item.tag == Settings.startAngle ? .on : .off }
         for item in fullMenu.items { item.state = item.tag == Settings.fullAngle ? .on : .off }
@@ -122,6 +158,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func toggleEnabled() {
         Settings.enabled.toggle()
+    }
+
+    @objc private func toggleMouseClears() {
+        Settings.mouseClearsBlur.toggle()
     }
 
     @objc private func pickStartAngle(_ sender: NSMenuItem) {
