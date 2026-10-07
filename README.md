@@ -29,7 +29,7 @@ Someone walks up to your desk. You tip the lid forward out of habit, but the scr
 | Below **25°** | Fully blurred |
 | Lid raised again | Clears automatically |
 
-Both angles are adjustable from the menu.
+The angles, blur strength, and dimming are all adjustable with sliders in the menu.
 
 - Covers every connected display
 - Click-through: the overlay never steals focus or blocks input
@@ -69,13 +69,17 @@ Quit LidBlur from its menu, then delete `/Applications/LidBlur.app`.
 
 | Item | What it does |
 | --- | --- |
+| **Disable / Enable** | Turn the blur off or on |
 | **Lid angle** | Live reading from the sensor |
-| **Enabled** | Turn the blur on or off |
-| **Start Blur At** | Angle where blur begins (50°–100°) |
-| **Full Blur At** | Angle where blur is at full strength (15°–45°) |
-| **Mouse Movement Clears Blur** | Optional, off by default. Moving the pointer fades the blur away; it comes back the next time you lower the lid |
+| **Start** slider | Angle where blur begins (40°–120°, default 70°) |
+| **Full** slider | Angle where blur is at full strength (5°–60°, default 25°) |
+| **Blur** slider | How strong the blur gets (default 64) |
+| **Dim** slider | How dark the screen gets (default 45%) |
+| **Reset** | Put the sliders back to their defaults |
 | **Preview Blur** | Runs a 3 second ramp so you can see the effect |
+| **Mouse Movement Clears Blur** | Optional, off by default. Moving the pointer fades the blur away; it comes back the next time you lower the lid |
 | **Launch at Login** | Start LidBlur automatically |
+| **Check for Updates…** | Opens the releases page |
 | **Quit LidBlur** | Exit |
 
 ## Requirements

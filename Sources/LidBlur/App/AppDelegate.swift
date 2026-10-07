@@ -14,15 +14,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var reveal = 1.0
 
     private let angleItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
-    private let enabledItem = NSMenuItem(title: "Enabled", action: #selector(toggleEnabled), keyEquivalent: "")
+    private let enabledItem = NSMenuItem(title: "Disable", action: #selector(toggleEnabled), keyEquivalent: "")
     private let mouseItem = NSMenuItem(title: "Mouse Movement Clears Blur", action: #selector(toggleMouseClears), keyEquivalent: "")
     private let loginItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLogin), keyEquivalent: "")
-    private let startMenu = NSMenu()
-    private let fullMenu = NSMenu()
+    private var sliderItems: [SliderMenuItem] = []
+    private var menuIsOpen = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.image = NSImage(systemSymbolName: "laptopcomputer", accessibilityDescription: "LidBlur")
+        enabledItem.image = NSImage(systemSymbolName: "power", accessibilityDescription: nil)
         statusItem.menu = buildMenu()
 
         let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in self?.tick() }
@@ -33,6 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // MARK: - Blur loop
 
     private func tick() {
+        if menuIsOpen { refreshAngleItem() }
         if let previewStart {
             let elapsed = Date().timeIntervalSince(previewStart)
             let duration = 3.0
@@ -103,57 +105,89 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func buildMenu() -> NSMenu {
         let menu = NSMenu()
         menu.delegate = self
-        menu.addItem(angleItem)
-        menu.addItem(.separator())
 
         enabledItem.target = self
         menu.addItem(enabledItem)
+        menu.addItem(angleItem)
+        menu.addItem(.separator())
 
-        let startItem = NSMenuItem(title: "Start Blur At", action: nil, keyEquivalent: "")
-        startItem.submenu = startMenu
-        for angle in Settings.startAngleChoices {
-            let item = NSMenuItem(title: "\(angle)°", action: #selector(pickStartAngle(_:)), keyEquivalent: "")
-            item.target = self
-            item.tag = angle
-            startMenu.addItem(item)
-        }
-        menu.addItem(startItem)
+        sliderItems = [
+            SliderMenuItem(
+                title: "Start", symbol: "angle", range: Settings.startAngleRange,
+                read: { Double(Settings.startAngle) },
+                write: { Settings.startAngle = Int($0) },
+                format: { "\(Int($0))°" }
+            ),
+            SliderMenuItem(
+                title: "Full", symbol: "laptopcomputer", range: Settings.fullAngleRange,
+                read: { Double(Settings.fullAngle) },
+                write: { Settings.fullAngle = Int($0) },
+                format: { "\(Int($0))°" }
+            ),
+            SliderMenuItem(
+                title: "Blur", symbol: "drop", range: Settings.blurRange,
+                read: { Double(Settings.blur) },
+                write: { [weak self] in
+                    Settings.blur = Int($0)
+                    self?.overlay.refresh()
+                },
+                format: { "\(Int($0))" }
+            ),
+            SliderMenuItem(
+                title: "Dim", symbol: "circle.lefthalf.filled", range: Settings.dimRange,
+                read: { Double(Settings.dim) },
+                write: { [weak self] in
+                    Settings.dim = Int($0)
+                    self?.overlay.refresh()
+                },
+                format: { "\(Int($0))%" }
+            ),
+        ]
+        sliderItems.forEach(menu.addItem)
+        menu.addItem(actionItem("Reset", symbol: "arrow.counterclockwise", action: #selector(resetSliders)))
+        menu.addItem(.separator())
 
-        let fullItem = NSMenuItem(title: "Full Blur At", action: nil, keyEquivalent: "")
-        fullItem.submenu = fullMenu
-        for angle in Settings.fullAngleChoices {
-            let item = NSMenuItem(title: "\(angle)°", action: #selector(pickFullAngle(_:)), keyEquivalent: "")
-            item.target = self
-            item.tag = angle
-            fullMenu.addItem(item)
-        }
-        menu.addItem(fullItem)
-
+        menu.addItem(actionItem("Preview Blur", symbol: "eye", action: #selector(preview)))
         mouseItem.target = self
         menu.addItem(mouseItem)
-
-        let previewItem = NSMenuItem(title: "Preview Blur", action: #selector(preview), keyEquivalent: "")
-        previewItem.target = self
-        menu.addItem(previewItem)
-
-        menu.addItem(.separator())
         loginItem.target = self
         menu.addItem(loginItem)
+        menu.addItem(.separator())
+
+        menu.addItem(actionItem("Check for Updates…", symbol: "arrow.down.circle", action: #selector(checkForUpdates)))
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
+        menu.addItem(NSMenuItem(title: "Version \(version)", action: nil, keyEquivalent: ""))
+        menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit LidBlur", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         return menu
     }
 
+    private func actionItem(_ title: String, symbol: String, action: Selector) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        item.target = self
+        item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+        return item
+    }
+
     func menuWillOpen(_ menu: NSMenu) {
+        menuIsOpen = true
+        refreshAngleItem()
+        enabledItem.title = Settings.enabled ? "Disable" : "Enable"
+        mouseItem.state = Settings.mouseClearsBlur ? .on : .off
+        loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        sliderItems.forEach { $0.reload() }
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        menuIsOpen = false
+    }
+
+    private func refreshAngleItem() {
         if let angle = sensor.angle() {
             angleItem.title = "Lid angle: \(Int(angle))°"
         } else {
             angleItem.title = "Lid sensor not found"
         }
-        enabledItem.state = Settings.enabled ? .on : .off
-        mouseItem.state = Settings.mouseClearsBlur ? .on : .off
-        loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
-        for item in startMenu.items { item.state = item.tag == Settings.startAngle ? .on : .off }
-        for item in fullMenu.items { item.state = item.tag == Settings.fullAngle ? .on : .off }
     }
 
     @objc private func toggleEnabled() {
@@ -164,16 +198,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         Settings.mouseClearsBlur.toggle()
     }
 
-    @objc private func pickStartAngle(_ sender: NSMenuItem) {
-        Settings.startAngle = sender.tag
-    }
-
-    @objc private func pickFullAngle(_ sender: NSMenuItem) {
-        Settings.fullAngle = sender.tag
+    @objc private func resetSliders() {
+        Settings.resetSliders()
+        overlay.refresh()
     }
 
     @objc private func preview() {
         previewStart = Date()
+    }
+
+    @objc private func checkForUpdates() {
+        if let url = URL(string: "https://github.com/AbabilX/LidBlur/releases") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     @objc private func toggleLogin() {

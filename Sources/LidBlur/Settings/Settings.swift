@@ -4,8 +4,10 @@ import Foundation
 enum Settings {
     private static let defaults = UserDefaults.standard
 
-    static let startAngleChoices = [100, 90, 80, 70, 60, 50]
-    static let fullAngleChoices = [45, 35, 25, 15]
+    static let startAngleRange = 40.0...120.0
+    static let fullAngleRange = 5.0...60.0
+    static let blurRange = 10.0...100.0
+    static let dimRange = 0.0...90.0
 
     static var enabled: Bool {
         get { defaults.object(forKey: "enabled") as? Bool ?? true }
@@ -28,5 +30,24 @@ enum Settings {
     static var fullAngle: Int {
         get { defaults.object(forKey: "fullAngle") as? Int ?? 25 }
         set { defaults.set(newValue, forKey: "fullAngle") }
+    }
+
+    /// Blur radius at full strength.
+    static var blur: Int {
+        get { defaults.object(forKey: "blur") as? Int ?? 64 }
+        set { defaults.set(newValue, forKey: "blur") }
+    }
+
+    /// Darkening at full strength, in percent.
+    static var dim: Int {
+        get { defaults.object(forKey: "dim") as? Int ?? 45 }
+        set { defaults.set(newValue, forKey: "dim") }
+    }
+
+    /// Restores the slider values to their defaults.
+    static func resetSliders() {
+        for key in ["startAngle", "fullAngle", "blur", "dim"] {
+            defaults.removeObject(forKey: key)
+        }
     }
 }

@@ -2,9 +2,6 @@ import AppKit
 
 /// Click-through blur windows covering every screen. `setStrength(0)` removes them.
 final class BlurOverlay {
-    static let maxRadius = 64.0
-    static let maxTint = 0.45
-
     private var windows: [NSWindow] = []
     private var strength = 0.0
 
@@ -26,6 +23,11 @@ final class BlurOverlay {
         apply()
     }
 
+    /// Re-applies the current strength after the blur or dim setting changes.
+    func refresh() {
+        apply()
+    }
+
     private func rebuild() {
         windows.forEach { $0.orderOut(nil) }
         windows = []
@@ -40,9 +42,9 @@ final class BlurOverlay {
         if windows.isEmpty {
             windows = NSScreen.screens.map(Self.makeWindow)
         }
-        let radius = Int32((strength * Self.maxRadius).rounded())
+        let radius = Int32((strength * Double(Settings.blur)).rounded())
         // Blur is only composited where the window has some alpha.
-        let tint = max(0.01, strength * Self.maxTint)
+        let tint = max(0.01, strength * Double(Settings.dim) / 100)
         for window in windows {
             window.backgroundColor = NSColor.black.withAlphaComponent(tint)
             if !window.isVisible { window.orderFrontRegardless() }
