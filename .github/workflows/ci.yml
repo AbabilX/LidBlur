@@ -1,0 +1,16 @@
+name: CI
+
+on:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build app bundle
+        run: ./scripts/build.sh
+      - name: Verify signature
+        run: codesign --verify --strict build/LidBlur.app
+      - name: Check shell scripts
+        run: bash -n install.sh scripts/build.sh scripts/dmg.sh scripts/next-version.sh

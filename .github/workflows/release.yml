@@ -1,0 +1,56 @@
+name: Release
+
+# Every push to main that touches the app builds a DMG and publishes a new release.
+# The version is the newest tag with the patch bumped; put [minor] or [major] in the
+# commit message to bump those instead.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Sources/**"
+      - "Resources/**"
+      - "scripts/**"
+      - "Package.swift"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Work out the next version
+        id: version
+        env:
+          MESSAGE: ${{ github.event.head_commit.message }}
+        run: echo "version=$(./scripts/next-version.sh "$MESSAGE")" >> "$GITHUB_OUTPUT"
+
+      - name: Build DMG
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: ./scripts/dmg.sh
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          FLAGS=()
+          # 0.x versions are previews.
+          if [[ "$VERSION" == 0.* ]]; then FLAGS+=(--prerelease); fi
+          gh release create "v$VERSION" build/LidBlur.dmg \
+            --title "LidBlur $VERSION" \
+            --target "$GITHUB_SHA" \
+            --generate-notes \
+            "${FLAGS[@]}"

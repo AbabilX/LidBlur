@@ -1,12 +1,5 @@
 import AppKit
 
-// Private WindowServer calls: the public API only offers a fixed-strength blur.
-@_silgen_name("CGSMainConnectionID")
-private func CGSMainConnectionID() -> Int32
-
-@_silgen_name("CGSSetWindowBackgroundBlurRadius")
-private func CGSSetWindowBackgroundBlurRadius(_ connection: Int32, _ window: Int32, _ radius: Int32) -> Int32
-
 /// Click-through blur windows covering every screen. `setStrength(0)` removes them.
 final class BlurOverlay {
     static let maxRadius = 64.0

@@ -89,29 +89,34 @@ Needs only the Xcode Command Line Tools (`xcode-select --install`).
 ```bash
 git clone https://github.com/AbabilX/LidBlur.git
 cd LidBlur
-./build.sh
-open build/LidBlur.app
+make run
 ```
 
-To package a DMG:
-
-```bash
-./dmg.sh
-```
+| Command | What it does |
+| --- | --- |
+| `make build` | Builds `build/LidBlur.app` |
+| `make run` | Builds and launches it |
+| `make dmg` | Builds `build/LidBlur.dmg` |
+| `make install` | Builds and copies into `/Applications` |
+| `make clean` | Removes build output |
 
 ## Project layout
 
 ```
 Sources/LidBlur/
-├── main.swift          App entry point
-├── AppDelegate.swift   Menu bar item and the angle → blur loop
-├── LidSensor.swift     Reads the hinge angle over IOKit HID
-├── BlurOverlay.swift   Full-screen blur windows
-└── Settings.swift      Preferences stored in UserDefaults
-build.sh                Builds and signs LidBlur.app
-dmg.sh                  Packages LidBlur.dmg
-install.sh              One-command installer
+├── App/         Entry point, menu bar item, the angle → blur loop
+├── Sensor/      Hinge angle reading over IOKit HID
+├── Overlay/     Blur windows and the private WindowServer calls
+└── Settings/    Preferences stored in UserDefaults
+Resources/       Info.plist
+scripts/         Build, packaging, and versioning scripts
+install.sh       One-command installer
+.github/         CI, automatic releases, issue and pull request templates
 ```
+
+## Releases
+
+Every push to `main` that changes the app is built by GitHub Actions and published as a new release with the patch version bumped. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ## Under the hood
 
@@ -125,4 +130,4 @@ install.sh              One-command installer
 
 ## Contributing
 
-Issues and pull requests are welcome. Reports from other MacBook models are especially useful: include the model, macOS version, and what the **Lid angle** menu item shows.
+Issues and pull requests are welcome; start with [CONTRIBUTING.md](CONTRIBUTING.md). Reports from other MacBook models are especially useful: include the model, macOS version, and what the **Lid angle** menu item shows.
