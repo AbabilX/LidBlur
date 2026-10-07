@@ -5,7 +5,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let sensor = LidSensor()
     private let overlay = BlurOverlay()
     private var statusItem: NSStatusItem!
+    private static let fastInterval = 1.0 / 30.0
+    private static let slowInterval = 1.0 / 5.0
+    /// Degrees above the start angle where polling speeds up, so a quick lid swing isn't missed.
+    private static let wakeMargin = 30.0
+
     private var timer: Timer?
+    private var pollingFast = false
+    private var lastRawAngle: Double?
+    private var lastMovement = Date.distantPast
+    private var builtInDisplayIsActive = false
     private var smoothedAngle: Double?
     private var previewStart: Date?
     // Mouse-to-clear state: where the pointer was when blur began, and the fade factor (1 = shown).
@@ -26,14 +35,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         enabledItem.image = NSImage(systemSymbolName: "power", accessibilityDescription: nil)
         statusItem.menu = buildMenu()
 
-        let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in self?.tick() }
-        RunLoop.main.add(timer, forMode: .common)
-        self.timer = timer
+        refreshBuiltInDisplay()
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.refreshBuiltInDisplay()
+        }
+        setPolling(fast: true)
     }
 
     // MARK: - Blur loop
 
-    private func tick() {
+    /// Polls quickly only while something is moving; otherwise a slow poll keeps idle cost near zero.
+    private func setPolling(fast: Bool) {
+        guard timer == nil || fast != pollingFast else { return }
+        pollingFast = fast
+        timer?.invalidate()
+        let interval = fast ? Self.fastInterval : Self.slowInterval
+        let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            self.setPolling(fast: self.tick())
+        }
+        timer.tolerance = interval * 0.2
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
+    }
+
+    /// Updates the blur and returns whether the next tick needs the fast polling rate.
+    private func tick() -> Bool {
         if menuIsOpen { refreshAngleItem() }
         if let previewStart {
             let elapsed = Date().timeIntervalSince(previewStart)
@@ -43,20 +74,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             } else {
                 // Ramp up then back down.
                 overlay.setStrength(sin(elapsed / duration * .pi))
-                return
+                return true
             }
         }
 
-        guard Settings.enabled, builtInDisplayIsActive(), let raw = sensor.angle() else {
+        guard Settings.enabled, builtInDisplayIsActive, let raw = sensor.angle() else {
             smoothedAngle = nil
+            lastRawAngle = nil
             resetMouseClear()
             overlay.setStrength(0)
-            return
+            return false
         }
-        let angle = smoothedAngle.map { $0 + (raw - $0) * 0.35 } ?? raw
+        if lastRawAngle.map({ abs($0 - raw) >= 1 }) ?? true { lastMovement = Date() }
+        lastRawAngle = raw
+
+        // Smoothing only makes sense at the fast rate; at the slow rate take the reading as is.
+        let angle = pollingFast ? (smoothedAngle.map { $0 + (raw - $0) * 0.35 } ?? raw) : raw
         smoothedAngle = angle
         let target = strength(forAngle: angle)
-        overlay.setStrength(target * revealFactor(blurWanted: target > 0))
+        let factor = revealFactor(blurWanted: target > 0)
+        overlay.setStrength(target * factor)
+
+        let nearBlurZone = raw < Double(Settings.startAngle) + Self.wakeMargin
+        let lidMoving = Date().timeIntervalSince(lastMovement) < 1
+        let fading = mouseCleared && factor > 0
+        return (nearBlurZone && lidMoving) || fading
     }
 
     /// Fades the blur out once the pointer moves, and re-arms when the lid is raised past the start angle.
@@ -91,8 +133,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     /// False in clamshell mode, where a shut lid shouldn't blur the external display.
-    private func builtInDisplayIsActive() -> Bool {
-        NSScreen.screens.contains { screen in
+    private func refreshBuiltInDisplay() {
+        builtInDisplayIsActive = NSScreen.screens.contains { screen in
             guard let id = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID else {
                 return false
             }
@@ -205,6 +247,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func preview() {
         previewStart = Date()
+        setPolling(fast: true)
     }
 
     @objc private func checkForUpdates() {
